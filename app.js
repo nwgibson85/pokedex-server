@@ -1,24 +1,62 @@
-const express = require('express');
-const morgan = require('morgan');
-const app = express();
+require('dotenv').config()
+const express = require('express')
+const morgan = require('morgan')
+const POKEDEX = require('./pokedex.json')
 
-app.use(morgan('common'));
+const app = express()
 
-app.get('/pokemon', (req, res) => {
- // ** search options = name or type
- // ** name = users are searching for whether the Pokemon's name includes a specified string. 
- //The search should be case insensitive.
- // ** type = drop down menu with one of the valid types
- //The API responds with an array of full pokedex entries for the search results
- 
- const validTypes = [`Bug`, `Dark`, `Dragon`, `Electric`, `Fairy`, `Fighting`, `Fire`, `Flying`, `Ghost`, `Grass`, `Ground`, `Ice`, `Normal`, `Poison`, `Psychic`, `Rock`, `Steel`, `Water`]
+const morganSetting = process.env.NODE_ENV === 'production' ? 'tiny' : 'common'
+app.use(morgan(morganSetting))
+
+app.use(function validateBearerToken(req, res, next) {
+  const apiToken = process.env.API_TOKEN
+  const authToken = req.get('Authorization')
+
+  if (!apiToken || authToken.split(' ')[1] !== apiToken) {
+    return res.status(401).json({ error: 'Unauthorized request' })
+  }
+  // move to the next middleware
+  next()
 })
 
-app.get('/types', (req, res) => {
-    // should return a list of all valid types.
+const validTypes = [`Bug`, `Dark`, `Dragon`, `Electric`, `Fairy`, `Fighting`, `Fire`, `Flying`, `Ghost`, `Grass`, `Ground`, `Ice`, `Normal`, `Poison`, `Psychic`, `Rock`, `Steel`, `Water`]
+
+app.get('/types', function handleGetTypes(req, res) {
+  res.json(validTypes)
 })
 
+app.get('/pokemon', function handleGetPokemon(req, res) {
+  let response = POKEDEX.pokemon;
 
+  // filter our pokemon by name if name query param is present
+  if (req.query.name) {
+    response = response.filter(pokemon =>
+      // case insensitive searching
+      pokemon.name.toLowerCase().includes(req.query.name.toLowerCase())
+    )
+  }
 
+  // filter our pokemon by type if type query param is present
+  if (req.query.type) {
+    response = response.filter(pokemon =>
+      pokemon.type.includes(req.query.type)
+    )
+  }
 
+  res.json(response)
+})
+
+// 4 parameters in middleware, express knows to treat this as error handler
+app.use((error, req, res, next) => {
+  let response
+  if (process.env.NODE_ENV === 'production') {
+    response = { error: { message: 'server error' }}
+  } else {
+    response = { error }
+  }
+  res.status(500).json(response)
+})
+
+const PORT = process.env.PORT || 8000
+    
 module.exports = app;
